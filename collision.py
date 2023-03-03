@@ -1,4 +1,4 @@
-from config import CIRCLE_CIRCLE_E, CIRCLE_BORDER, GROUND_CIRCLE_E, CIRCLE_RADIUS, THRESHOLD_DEPTH
+from config import *
 from coord import Coord
 from calculation import resolve_vectors, cc_oblique_collision, point_to_line_dist
 
@@ -11,7 +11,11 @@ def check_cc_reasonable_collision(u1_para, disp1, u2_para, disp2):
             return False
     return True
 
-def cc_final_velocities(e, m1, u1, disp1, m2, u2, disp2):
+def cc_final_velocities(e, cir1, disp1, cir2, disp2): # <-
+    m1 = cir1.mass
+    u1 = cir1.vel
+    m2 = cir2.mass
+    u2 = cir2.vel
     gradient = disp1.gradient(disp2)
     u1_para, v1_perp = resolve_vectors(u1, gradient)
     u2_para, v2_perp = resolve_vectors(u2, gradient)
@@ -21,35 +25,38 @@ def cc_final_velocities(e, m1, u1, disp1, m2, u2, disp2):
         v1_x, v1_y = resolve_vectors(Coord(v1_para, v1_perp), gradient)
         v2_x, v2_y = resolve_vectors(Coord(v2_para, v2_perp), gradient)
 
-        u1 = Coord(v1_x, v1_y)
-        u2 = Coord(v2_x, v2_y)
-    return u1, u2
+        cir1.vel = Coord(v1_x, v1_y)
+        cir2.vel = Coord(v2_x, v2_y)
+    return cir1, cir2
 
-def cg_final_velocities(e, u, dist, coord_a, coord_b):
-    if u.y > 0:
-        return u
-    if -THRESHOLD_DEPTH < u.y < THRESHOLD_DEPTH and -THRESHOLD_DEPTH < dist < THRESHOLD_DEPTH:
-        u.y = 0
-        return u
+def cg_final_velocities(e, cir, dist, coord_a, coord_b): # <-
+    u = cir.vel
+    if -THRESHOLD_DEPTH < u.y / VEL_SCALED < THRESHOLD_DEPTH and -THRESHOLD_DEPTH < dist < THRESHOLD_DEPTH:
+        cir.vel.y = 0
+        return cir
+    if u.y >= 0:
+        return cir
     if coord_a.y == coord_b.y:
-        u.y *= -e
-        return u
+        cir.vel = Coord(cir.vel.x, cir.vel.y * -e)
+        #cir.update_spin(0)
+        return cir
 
     gradient = -1 / coord_b.gradient(coord_a)
+    #cir.update_spin(gradient)
     u_para, u_perp = resolve_vectors(u, gradient)
     v_x, v_y = resolve_vectors(Coord(u_para * -e, u_perp), gradient)
-    return Coord(v_x, v_y)
+    cir.vel = Coord(v_x, v_y)
+    return cir
 
 def circle_circle_collision(circles, c1, c2):
     cir1 = circles[c1][0]
     cir2 = circles[c2][0]
     dist = cir1.disp.pyth(cir2.disp)
     if dist <= cir1.radius + cir2.radius:
-        direction_vec = cir2.disp - cir1.disp
-        cir1.disp -= (direction_vec * cir1.radius).div(100)
-        cir2.disp += (direction_vec * cir2.radius).div(100)
-        cir1.vel, cir2.vel = cc_final_velocities(CIRCLE_CIRCLE_E, cir1.mass, cir1.vel, cir1.disp,
-                                                 cir2.mass, cir2.vel, cir2.disp)
+        direction_vec = (cir2.disp - cir1.disp).div(SIZE_SCALED)
+        cir1.disp -= direction_vec * (cir1.radius / SIZE_SCALED)
+        cir2.disp += direction_vec * (cir2.radius / SIZE_SCALED)
+        cir1, cir2 = cc_final_velocities(CIRCLE_CIRCLE_E, cir1, cir1.disp, cir2, cir2.disp)
     circles[c1][0] = cir1
     circles[c2][0] = cir2
 
@@ -61,15 +68,15 @@ def circle_ground_collision(circles, grounds, c):
         grn = grn[0]
         direction_vec = grn.get_direction_vec()
         line_vec = Coord(grn.coord_a.x / 10, grn.coord_a.y)
-        dist = cir.radius + CIRCLE_BORDER / 100 - abs(point_to_line_dist(cir.disp, direction_vec, line_vec))
+        dist = cir.radius - abs(point_to_line_dist(cir.disp, direction_vec, line_vec))
         if dist >= 0:
-            cir.disp.y += dist / 2
-            cir.vel = cg_final_velocities(GROUND_CIRCLE_E, cir.vel, dist, grn.coord_a, grn.coord_b)
+            cir.disp.y += dist / 10
+            cir = cg_final_velocities(GROUND_CIRCLE_E, cir, dist, grn.coord_a, grn.coord_b)
     circles[c][0] = cir
 
 
-def sort_key(e):
-    return e['disp']
+def sort_key(d):
+    return d['disp']
 
 def check_collisions(circles, grounds):
     num_of_circles = len(circles)

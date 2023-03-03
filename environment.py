@@ -41,20 +41,24 @@ class Environment:
         self.setup_grounds(sim)
 
     def update_circle(self, j):
-        self.circles[j][0].get_new_disp()
-        self.cnv.delete(self.circles[j][1])
+        self.circles[j][0].get_new_disp(len(self.circles))
+        old_cir = self.circles[j][1]
         if self.circles[j][0].not_out_of_screen():
             self.circles.pop(j)
         else:
+            # self.circles[j][0].angle += 360 / VEL_SCALED
             self.circles[j][1] = self.circles[j][0].draw(self.cnv)
             j += 1
+        if old_cir:
+            self.cnv.delete(old_cir[0])
+            self.cnv.delete(old_cir[1])
         return j
 
     def run(self):
         i = 0
         while self.circles:
             check_collisions(self.circles, self.grounds)
-            time.sleep(10 ** -32)
+            #time.sleep(10 ** -32)
             j = 0
             try:
                 while j < len(self.circles):
