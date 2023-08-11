@@ -1,3 +1,3 @@
 # Python_Physics_Simulator
 
-Project finished in March 2023
+Project ended in March 2023
